@@ -12,7 +12,7 @@ codesign --force --sign - "$APP"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP"
 
 if [[ "${1:-}" != "--yes" ]]; then
-  echo "Side Edit is built. Make it the default app for .md .json .yaml .py .sh .js .go .rs .sql .env .log .txt and ~30 more text/code types?"
+  echo "Side Edit is built. Make it the default app for .md .json .yaml .py .sh .js .go .rs .sql .env .log .txt and ~50 more text/code types?"
   echo "Double-click then opens the side panel; hold ⌘ or ⇧ to use the usual app. Undo any time with ./uninstall.sh"
   read "?[y/N] " ans
   [[ "$ans" == [yY]* ]] || { echo "Left your defaults alone. Open files with right-click > Open With > Side Edit."; exit 0; }
@@ -27,7 +27,7 @@ let ids = ["net.daringfireball.markdown", "public.plain-text", "public.json", "p
            "public.python-script", "public.shell-script", "public.zsh-script", "com.netscape.javascript-source", "public.swift-source"]
 // Extensions with no (or a dynamic) system type, e.g. go. Left out on purpose: ts (MPEG video), html/csv/svg (other apps own them).
 let exts = ["go", "rs", "tsx", "jsx", "mjs", "cjs", "css", "scss", "c", "h", "cpp", "hpp", "java", "kt", "rb", "php", "sql", "toml", "ini",
-            "cfg", "conf", "env", "log", "txt", "sh", "bash", "zsh", "lua", "r", "scala", "dart", "vue", "svelte", "tf", "gradle"]
+            "cfg", "conf", "env", "log", "txt", "sh", "bash", "zsh", "lua", "r", "scala", "dart", "vue", "svelte", "tf", "gradle", "lock", "nix", "yml", "jsonc", "json5", "properties", "gql", "graphql", "proto", "mod", "sum", "zig", "ex", "exs", "hs", "clj", "pl", "tsv", "diff", "patch"]
 let types = ids.map { UTType($0) } + exts.map { UTType(filenameExtension: $0) }
 var pending = 0
 for (i, t) in types.enumerated() {

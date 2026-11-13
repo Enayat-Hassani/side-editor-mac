@@ -18,7 +18,7 @@ git clone https://github.com/Enayat-Hassani/side-editor-mac && cd side-editor-ma
 ./install.sh
 ```
 
-The script builds `~/Applications/Side Edit.app`, then asks before making it the default app for about 40 text and code types (md, json, yaml, py, sh, js, go, rs, sql, env, log, txt and more). Say no and use right-click > Open With instead. `./install.sh --yes` skips the question. Folders and `.ts`, `.html`, `.csv`, `.svg` files are left alone.
+The script builds `~/Applications/Side Edit.app`, then asks before making it the default app for about 60 text and code types (md, json, yaml, py, sh, js, go, rs, sql, env, lock, nix, log, txt and more). Say no and use right-click > Open With instead. `./install.sh --yes` skips the question. Folders and `.ts`, `.html`, `.csv`, `.svg` files are left alone.
 
 ## Usual apps
 

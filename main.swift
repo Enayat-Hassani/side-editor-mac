@@ -30,7 +30,8 @@ func finderSideFrame() -> NSRect? {
     for w in list where (w[kCGWindowOwnerName as String] as? String) == "Finder" && (w[kCGWindowLayer as String] as? Int) == 0 {
         guard let b = w[kCGWindowBounds as String] as? [String: CGFloat],
               let x = b["X"], let y = b["Y"], let width = b["Width"], let height = b["Height"], width > 400, height > 300 else { continue }  // height check skips the full-screen toolbar strip
-        let panelWidth = min(620, max(380, width * 0.42))
+        let saved = UserDefaults.standard.double(forKey: "panelWidth")  // set by resizing the panel
+        let panelWidth = saved > 0 ? min(saved, width - 200) : min(620, max(380, width * 0.42))
         return NSRect(x: x + width - panelWidth, y: primary.frame.height - y - height, width: panelWidth, height: height)
     }
     return nil
@@ -40,7 +41,10 @@ func finderSideFrame() -> NSRect? {
     var text = ""
     weak var view: NSTextView?
     var isMarkdown: Bool { fileURL?.pathExtension.lowercased() == "md" }
-    var bodyFont: NSFont { isMarkdown ? .systemFont(ofSize: 14) : .monospacedSystemFont(ofSize: 13, weight: .regular) }
+    var fontDelta: CGFloat { CGFloat(UserDefaults.standard.double(forKey: "fontDelta")) }  // ⌘+ / ⌘-, remembered
+    var bodyFont: NSFont {
+        isMarkdown ? .systemFont(ofSize: 14 + fontDelta) : .monospacedSystemFont(ofSize: 13 + fontDelta, weight: .regular)
+    }
 
     override class var autosavesInPlace: Bool { false }  // no background autosave or versions; closing saves instead
 
@@ -48,9 +52,12 @@ func finderSideFrame() -> NSRect? {
     override var isDocumentEdited: Bool { (view?.string ?? text) != text }
 
     override func read(from data: Data, ofType typeName: String) throws {
-        guard let s = String(data: data, encoding: .utf8) else {
-            throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadInapplicableStringEncodingError)
+        func refuse(_ why: String) -> NSError {
+            NSError(domain: NSCocoaErrorDomain, code: NSFileReadUnknownError, userInfo: [NSLocalizedDescriptionKey: why])
         }
+        if data.count > 2_000_000 { throw refuse("This file is over 2 MB. Open it with ⌘-double-click in your usual app.") }
+        if data.contains(0) { throw refuse("This looks like a binary file, not text.") }
+        guard let s = String(data: data, encoding: .utf8) else { throw refuse("This file isn't UTF-8 text, so Side Edit won't touch it.") }
         text = s
     }
 
@@ -87,6 +94,7 @@ func finderSideFrame() -> NSRect? {
         tv.string = text
         if isMarkdown { tv.textStorage?.delegate = self; styleMarkdown(tv.textStorage!) }
         panel.contentView = scroll
+        setWrap(!UserDefaults.standard.bool(forKey: "noWrap"), in: tv)
         panel.standardWindowButton(.documentIconButton)?.isHidden = true
         view = tv
 
@@ -96,6 +104,39 @@ func finderSideFrame() -> NSRect? {
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(tv)
         tv.setSelectedRange(NSRange(location: 0, length: 0))
+    }
+
+    func windowDidEndLiveResize(_ n: Notification) {
+        if let w = n.object as? NSWindow { UserDefaults.standard.set(w.frame.width, forKey: "panelWidth") }
+    }
+
+    func setWrap(_ wrap: Bool, in tv: NSTextView) {
+        guard let scroll = tv.enclosingScrollView else { return }
+        scroll.hasHorizontalScroller = !wrap
+        tv.isHorizontallyResizable = !wrap
+        tv.textContainer?.widthTracksTextView = wrap
+        tv.textContainer?.containerSize = NSSize(width: wrap ? scroll.contentSize.width : .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+    }
+
+    @objc func toggleWrap(_ sender: Any?) {
+        guard let tv = view else { return }
+        let noWrap = !UserDefaults.standard.bool(forKey: "noWrap")
+        UserDefaults.standard.set(noWrap, forKey: "noWrap")
+        setWrap(!noWrap, in: tv)
+    }
+
+    @objc func biggerFont(_ sender: Any?) { changeFont(by: 1) }
+    @objc func smallerFont(_ sender: Any?) { changeFont(by: -1) }
+    func changeFont(by step: CGFloat) {
+        guard let tv = view, let ts = tv.textStorage else { return }
+        UserDefaults.standard.set(min(20, max(-4, fontDelta + step)), forKey: "fontDelta")
+        tv.font = bodyFont
+        tv.typingAttributes[.font] = bodyFont
+        if isMarkdown { styleMarkdown(ts) }
+    }
+
+    @objc func revealInFinder(_ sender: Any?) {  // Finder comes forward, so the panel saves and closes
+        if let url = fileURL { NSWorkspace.shared.activateFileViewerSelecting([url]) }
     }
 
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { undoManager }
@@ -117,7 +158,7 @@ func finderSideFrame() -> NSRect? {
         ts.addAttributes([.font: bodyFont, .foregroundColor: NSColor.textColor, .paragraphStyle: para], range: all)
         let re = try! NSRegularExpression(pattern: "^#{1,6} .*$", options: .anchorsMatchLines)
         for m in re.matches(in: ts.string, range: all) {
-            ts.addAttributes([.font: NSFont.systemFont(ofSize: 16, weight: .semibold), .foregroundColor: NSColor.controlAccentColor], range: m.range)
+            ts.addAttributes([.font: NSFont.systemFont(ofSize: 16 + fontDelta, weight: .semibold), .foregroundColor: NSColor.controlAccentColor], range: m.range)
         }
     }
 
@@ -135,6 +176,12 @@ func finderSideFrame() -> NSRect? {
 
     @objc func moveToTrash(_ sender: Any?) {
         guard let url = fileURL else { return }
+        let alert = NSAlert()
+        alert.messageText = "Move “\(url.lastPathComponent)” to the Trash?"
+        alert.informativeText = "Unsaved changes are discarded."
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         close()
         NSWorkspace.shared.recycle([url])
     }
@@ -151,7 +198,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if external, let app = externalApp(for: url) {
                 NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
             } else {
-                NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+                NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+                    guard let error else { return }
+                    NSApp.activate(ignoringOtherApps: true)
+                    NSApp.presentError(error)
+                    if NSDocumentController.shared.documents.isEmpty { NSApp.terminate(nil) }
+                }
             }
         }
         if external && NSDocumentController.shared.documents.isEmpty { NSApp.terminate(nil) }
@@ -192,6 +244,12 @@ func buildMenu() -> NSMenu {
         item("Revert to Saved", #selector(NSDocument.revertToSaved(_:)), ""),
         item("Open in Usual App", #selector(Doc.openInBigEditor(_:)), "e"),
         item("Move to Trash", #selector(Doc.moveToTrash(_:)), "\u{8}"),
+        item("Reveal in Finder", #selector(Doc.revealInFinder(_:)), "r"),
+        .separator(),
+        item("Bigger Text", #selector(Doc.biggerFont(_:)), "+"),
+        item("Bigger Text", #selector(Doc.biggerFont(_:)), "="),  // ⌘= works without ⇧
+        item("Smaller Text", #selector(Doc.smallerFont(_:)), "-"),
+        item("Toggle Line Wrap", #selector(Doc.toggleWrap(_:)), "l"),
         .separator(),
         item("Close", #selector(NSWindow.performClose(_:)), "w"),
         item("Close (Esc)", #selector(NSWindow.performClose(_:)), "\u{1b}", []),

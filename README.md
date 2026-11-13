@@ -5,7 +5,8 @@ A tiny macOS text editor that opens as a panel over the right side of your Finde
 - **Double-click** a file: the side panel opens next to it (also works with Finder in full screen).
 - **⌘ or ⇧ + double-click**: opens the file in its usual app instead.
 - **Esc, ⌘W, ⌘S, or clicking back into Finder**: saves and closes. No save prompts.
-- **⌘E**: open the current file in its usual app. **⌘⌫**: move the file to the Trash.
+- **⌘E**: open the current file in its usual app. **⌘R**: reveal it in Finder (this saves and closes the panel). **⌘⌫**: move the file to the Trash, after a confirmation.
+- **⌘+ / ⌘−**: text size. **⌘L**: toggle line wrap. Size, wrap and the panel width you drag it to are remembered.
 - No Dock icon, no windows left behind. Plain text only, no syntax highlighting (Markdown headings are styled).
 
 ## Install
@@ -39,7 +40,7 @@ File types fall back to the next app macOS knows for them. If one still opens od
 
 ## Limits
 
-- UTF-8 files only; other encodings show an error.
+- UTF-8 text only, up to 2 MB. Binary, other-encoding and larger files show a message and are left alone.
 - The panel position follows the frontmost Finder window; with no Finder window it centres on screen.
 - The app is ad-hoc signed locally, so there is no pre-built download.
 

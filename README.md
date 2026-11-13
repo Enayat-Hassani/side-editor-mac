@@ -13,7 +13,7 @@ A tiny macOS text editor that opens as a panel over the right side of your Finde
 Needs macOS 13+ and the Swift compiler (`xcode-select --install`).
 
 ```bash
-git clone <this repo> && cd side-editor-mac
+git clone https://github.com/Enayat-Hassani/side-editor-mac && cd side-editor-mac
 ./install.sh
 ```
 
